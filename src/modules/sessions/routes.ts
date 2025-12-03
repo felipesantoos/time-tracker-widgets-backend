@@ -367,6 +367,111 @@ router.delete('/active', authToken, async (req: AuthenticatedRequest, res, next)
   }
 });
 
+// GET /sessions/active/stream - SSE stream para sessão ativa
+router.get('/active/stream', authToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const userId = req.userId!;
+
+    // Configurar headers SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Desabilitar buffering do nginx
+
+    // Função para enviar evento SSE
+    const sendEvent = (data: any) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    };
+
+    // Função para buscar e enviar estado atual
+    const sendCurrentState = async () => {
+      try {
+        const activeSession = await prisma.activeSession.findUnique({
+          where: { userId },
+          include: {
+            project: {
+              select: {
+                id: true,
+                name: true,
+                color: true,
+              },
+            },
+          },
+        });
+
+        if (activeSession) {
+          const now = new Date();
+          const elapsedSeconds = Math.floor((now.getTime() - activeSession.startTime.getTime()) / 1000);
+
+          sendEvent({
+            active: true,
+            id: activeSession.id,
+            startTime: activeSession.startTime.toISOString(),
+            mode: activeSession.mode,
+            projectId: activeSession.projectId,
+            description: activeSession.description,
+            targetSeconds: activeSession.targetSeconds,
+            pomodoroPhase: activeSession.pomodoroPhase,
+            pomodoroCycle: activeSession.pomodoroCycle,
+            project: activeSession.project,
+            elapsedSeconds,
+          });
+        } else {
+          sendEvent({
+            active: false,
+            elapsedSeconds: 0,
+          });
+        }
+      } catch (err) {
+        console.error('Erro ao buscar sessão ativa no SSE:', err);
+        sendEvent({
+          active: false,
+          error: 'Erro ao buscar sessão ativa',
+        });
+      }
+    };
+
+    // Enviar estado inicial
+    await sendCurrentState();
+
+    // Enviar atualizações a cada segundo
+    let isClosed = false;
+    const interval = setInterval(async () => {
+      // Verificar se o cliente ainda está conectado
+      if (isClosed) {
+        clearInterval(interval);
+        return;
+      }
+
+      try {
+        await sendCurrentState();
+      } catch (err) {
+        console.error('Erro ao enviar atualização SSE:', err);
+      }
+    }, 1000);
+
+    // Limpar ao desconectar
+    req.on('close', () => {
+      isClosed = true;
+      clearInterval(interval);
+      if (!res.headersSent) {
+        res.end();
+      }
+    });
+
+    res.on('close', () => {
+      isClosed = true;
+      clearInterval(interval);
+    });
+  } catch (error) {
+    console.error('Erro no SSE stream:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Erro no stream' });
+    }
+    next(error);
+  }
+});
+
 // PATCH /sessions/:id - Atualizar sessão
 router.patch('/:id', authToken, async (req: AuthenticatedRequest, res, next) => {
   try {
