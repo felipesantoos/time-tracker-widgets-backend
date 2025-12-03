@@ -6,7 +6,7 @@ import { authToken, AuthenticatedRequest } from '../../middleware/authToken';
 const router = Router();
 
 const createSessionSchema = z.object({
-  projectId: z.string().min(1), // CUID ou UUID - apenas valida que não está vazio
+  projectId: z.string().min(1).optional().nullable(), // Opcional - pode ser null
   description: z.string().optional(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
@@ -88,25 +88,46 @@ router.post('/', authToken, async (req: AuthenticatedRequest, res, next) => {
     const userId = req.userId!;
     const body = createSessionSchema.parse(req.body);
 
-    // Verificar se o projeto pertence ao usuário
-    const project = await prisma.project.findFirst({
-      where: {
-        id: body.projectId,
-        userId,
-      },
-    });
+    // Verificar se o projeto pertence ao usuário (apenas se projectId foi fornecido)
+    if (body.projectId) {
+      const project = await prisma.project.findFirst({
+        where: {
+          id: body.projectId,
+          userId,
+        },
+      });
 
-    if (!project) {
-      return res.status(404).json({ error: 'Projeto não encontrado' });
+      if (!project) {
+        return res.status(404).json({ error: 'Projeto não encontrado' });
+      }
+    }
+
+    const sessionData: {
+      description?: string;
+      startTime: Date;
+      endTime: Date;
+      durationSeconds: number;
+      mode: 'stopwatch' | 'timer' | 'pomodoro';
+      userId: string;
+      projectId?: string | null;
+    } = {
+      description: body.description,
+      startTime: new Date(body.startTime),
+      endTime: new Date(body.endTime),
+      durationSeconds: body.durationSeconds,
+      mode: body.mode,
+      userId,
+    };
+
+    // Incluir projectId apenas se fornecido, senão será null
+    if (body.projectId) {
+      sessionData.projectId = body.projectId;
+    } else {
+      sessionData.projectId = null;
     }
 
     const session = await prisma.timeSession.create({
-      data: {
-        ...body,
-        userId,
-        startTime: new Date(body.startTime),
-        endTime: new Date(body.endTime),
-      },
+      data: sessionData as any,
       include: {
         project: {
           select: {
