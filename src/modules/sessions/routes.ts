@@ -75,7 +75,7 @@ router.get('/', authToken, async (req: AuthenticatedRequest, res, next) => {
           },
         },
         orderBy: {
-          startTime: 'desc',
+          endTime: 'desc',
         },
         skip,
         take: limitNum,
