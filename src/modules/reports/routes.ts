@@ -44,10 +44,14 @@ router.get('/summary', authToken, async (req: AuthenticatedRequest, res, next) =
     }> = {};
 
     for (const session of sessions) {
-      const projectId = session.projectId;
+      const projectId: string = session.projectId || 'no-project';
       if (!byProject[projectId]) {
         byProject[projectId] = {
-          project: session.project,
+          project: session.project || {
+            id: 'no-project',
+            name: 'Sem Projeto',
+            color: '#999999',
+          },
           totalSeconds: 0,
           sessionCount: 0,
         };
@@ -116,10 +120,14 @@ router.get('/pomodoro', authToken, async (req: AuthenticatedRequest, res, next) 
     }> = {};
 
     for (const session of pomodoroSessions) {
-      const projectId = session.projectId;
+      const projectId: string = session.projectId || 'no-project';
       if (!byProject[projectId]) {
         byProject[projectId] = {
-          project: session.project,
+          project: session.project || {
+            id: 'no-project',
+            name: 'Sem Projeto',
+            color: '#999999',
+          },
           count: 0,
         };
       }
