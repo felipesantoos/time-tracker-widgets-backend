@@ -15,6 +15,7 @@ model User {
   projects        Project[]
   pomodoroSetting PomodoroSettings?
   timeSessions    TimeSession[]
+  activeSession   ActiveSession?
 }
 
 model AccessToken {
@@ -37,7 +38,8 @@ model Project {
   user   User          @relation(fields: [userId], references: [id])
   userId String
 
-  sessions TimeSession[]
+  sessions      TimeSession[]
+  activeSessions ActiveSession[]
 }
 
 model TimeSession {
@@ -68,6 +70,24 @@ model PomodoroSettings {
 
   user   User   @relation(fields: [userId], references: [id])
   userId String @unique
+}
+
+model ActiveSession {
+  id              String      @id @default(cuid())
+  startTime       DateTime
+  mode            SessionMode
+  description     String?
+  targetSeconds   Int?        // Para timer e pomodoro
+  pomodoroPhase   String?     // 'work' | 'shortBreak' | 'longBreak'
+  pomodoroCycle   Int         @default(0)
+
+  project   Project? @relation(fields: [projectId], references: [id])
+  projectId String?
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @unique
+
+  @@index([userId])
 }
 
 enum SessionMode {

@@ -21,6 +21,16 @@ const updateSessionSchema = z.object({
   endTime: z.string().optional(),
 });
 
+const activeSessionSchema = z.object({
+  startTime: z.string().datetime(),
+  mode: z.enum(['stopwatch', 'timer', 'pomodoro']),
+  projectId: z.string().min(1).optional().nullable(),
+  description: z.string().optional(),
+  targetSeconds: z.number().int().min(0).optional().nullable(),
+  pomodoroPhase: z.enum(['work', 'shortBreak', 'longBreak']).optional().nullable(),
+  pomodoroCycle: z.number().int().min(0).optional(),
+});
+
 // GET /sessions - Listar sessões com filtros
 router.get('/', authToken, async (req: AuthenticatedRequest, res, next) => {
   try {
@@ -146,6 +156,180 @@ router.post('/', authToken, async (req: AuthenticatedRequest, res, next) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
     }
+    next(error);
+  }
+});
+
+// GET /sessions/active - Buscar sessão ativa do usuário
+router.get('/active', authToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const userId = req.userId!;
+
+    const activeSession = await prisma.activeSession.findUnique({
+      where: { userId },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+      },
+    });
+
+    if (!activeSession) {
+      return res.status(404).json({ error: 'Nenhuma sessão ativa encontrada' });
+    }
+
+    res.json({ data: activeSession });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /sessions/active - Criar ou atualizar sessão ativa
+router.post('/active', authToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const userId = req.userId!;
+    const body = activeSessionSchema.parse(req.body);
+
+    // Verificar se o projeto pertence ao usuário (apenas se projectId foi fornecido)
+    if (body.projectId) {
+      const project = await prisma.project.findFirst({
+        where: {
+          id: body.projectId,
+          userId,
+        },
+      });
+
+      if (!project) {
+        return res.status(404).json({ error: 'Projeto não encontrado' });
+      }
+    }
+
+    const activeSessionData: {
+      startTime: Date;
+      mode: 'stopwatch' | 'timer' | 'pomodoro';
+      userId: string;
+      projectId?: string | null;
+      description?: string;
+      targetSeconds?: number | null;
+      pomodoroPhase?: string | null;
+      pomodoroCycle: number;
+    } = {
+      startTime: new Date(body.startTime),
+      mode: body.mode,
+      userId,
+      pomodoroCycle: body.pomodoroCycle ?? 0,
+    };
+
+    if (body.description !== undefined) {
+      activeSessionData.description = body.description;
+    }
+
+    if (body.projectId !== undefined) {
+      activeSessionData.projectId = body.projectId || null;
+    } else {
+      activeSessionData.projectId = null;
+    }
+
+    if (body.targetSeconds !== undefined) {
+      activeSessionData.targetSeconds = body.targetSeconds;
+    }
+
+    if (body.pomodoroPhase !== undefined) {
+      activeSessionData.pomodoroPhase = body.pomodoroPhase;
+    }
+
+    // Usar upsert para criar ou atualizar
+    const activeSession = await prisma.activeSession.upsert({
+      where: { userId },
+      update: activeSessionData,
+      create: activeSessionData,
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+      },
+    });
+
+    res.json({ data: activeSession });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Dados inválidos', details: error.errors });
+    }
+    next(error);
+  }
+});
+
+// DELETE /sessions/active - Finalizar sessão ativa (cria TimeSession e remove ActiveSession)
+router.delete('/active', authToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const userId = req.userId!;
+
+    const activeSession = await prisma.activeSession.findUnique({
+      where: { userId },
+    });
+
+    if (!activeSession) {
+      return res.status(404).json({ error: 'Nenhuma sessão ativa encontrada' });
+    }
+
+    const endTime = new Date();
+    const duration = Math.floor((endTime.getTime() - activeSession.startTime.getTime()) / 1000);
+
+    if (duration <= 0) {
+      // Se a duração for inválida, apenas remover a sessão ativa
+      await prisma.activeSession.delete({
+        where: { userId },
+      });
+      return res.status(400).json({ error: 'Duração inválida' });
+    }
+
+    // Criar TimeSession
+    const sessionData: {
+      description?: string;
+      startTime: Date;
+      endTime: Date;
+      durationSeconds: number;
+      mode: 'stopwatch' | 'timer' | 'pomodoro';
+      userId: string;
+      projectId?: string | null;
+    } = {
+      description: activeSession.description || undefined,
+      startTime: activeSession.startTime,
+      endTime,
+      durationSeconds: duration,
+      mode: activeSession.mode,
+      userId,
+      projectId: activeSession.projectId || null,
+    };
+
+    const timeSession = await prisma.timeSession.create({
+      data: sessionData as any,
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+      },
+    });
+
+    // Remover sessão ativa
+    await prisma.activeSession.delete({
+      where: { userId },
+    });
+
+    res.json({ data: timeSession });
+  } catch (error) {
     next(error);
   }
 });
