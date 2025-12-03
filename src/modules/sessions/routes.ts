@@ -10,7 +10,7 @@ const createSessionSchema = z.object({
   description: z.string().optional(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
-  durationSeconds: z.number().int().positive(),
+  durationSeconds: z.number().int().min(0), // Permite zero (tempos iguais)
   mode: z.enum(['stopwatch', 'timer', 'pomodoro']),
 });
 
@@ -220,8 +220,8 @@ router.patch('/:id', authToken, async (req: AuthenticatedRequest, res, next) => 
     if (body.startTime || body.endTime) {
       updateData.durationSeconds = Math.floor((newEndTime.getTime() - newStartTime.getTime()) / 1000);
       
-      if (updateData.durationSeconds <= 0) {
-        return res.status(400).json({ error: 'A data de término deve ser posterior à data de início' });
+      if (updateData.durationSeconds < 0) {
+        return res.status(400).json({ error: 'A data de término deve ser posterior ou igual à data de início' });
       }
     }
 
