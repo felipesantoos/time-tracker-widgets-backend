@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../config/prisma';
 import { authToken, AuthenticatedRequest } from '../../middleware/authToken';
+import { activeSessionEmitter } from './activeSessionEmitter';
 
 const router = Router();
 
@@ -265,6 +266,9 @@ router.post('/active', authToken, async (req: AuthenticatedRequest, res, next) =
       },
     });
 
+    // Notificar mudança para os clientes SSE
+    activeSessionEmitter.notifyActiveSessionChange(userId);
+
     res.json({ data: activeSession });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -359,6 +363,9 @@ router.delete('/active', authToken, async (req: AuthenticatedRequest, res, next)
       return timeSession;
     });
 
+    // Notificar mudança para os clientes SSE
+    activeSessionEmitter.notifyActiveSessionChange(userId);
+
     console.log('Transação concluída, retornando TimeSession:', result.id);
     res.json({ data: result });
   } catch (error) {
@@ -380,28 +387,46 @@ router.get('/active/stream', authToken, async (req: AuthenticatedRequest, res, n
 
     // Função para enviar evento SSE
     const sendEvent = (data: any) => {
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
+      try {
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      } catch (err) {
+        // Cliente desconectado, ignorar erro
+      }
     };
 
+    // Cache do estado atual para evitar queries desnecessárias
+    let cachedState: any = null;
+    let lastQueryTime = 0;
+    const QUERY_CACHE_MS = 100; // Cache queries por 100ms
+
     // Função para buscar e enviar estado atual
-    const sendCurrentState = async () => {
+    const sendCurrentState = async (forceQuery = false) => {
       try {
-        const activeSession = await prisma.activeSession.findUnique({
-          where: { userId },
-          include: {
-            project: {
-              select: {
-                id: true,
-                name: true,
-                color: true,
+        const now = Date.now();
+        const shouldQuery = forceQuery || (now - lastQueryTime) > QUERY_CACHE_MS;
+
+        let activeSession = cachedState?.activeSession;
+
+        if (shouldQuery) {
+          activeSession = await prisma.activeSession.findUnique({
+            where: { userId },
+            include: {
+              project: {
+                select: {
+                  id: true,
+                  name: true,
+                  color: true,
+                },
               },
             },
-          },
-        });
+          });
+          cachedState = { activeSession };
+          lastQueryTime = now;
+        }
 
         if (activeSession) {
-          const now = new Date();
-          const elapsedSeconds = Math.floor((now.getTime() - activeSession.startTime.getTime()) / 1000);
+          const currentTime = new Date();
+          const elapsedSeconds = Math.floor((currentTime.getTime() - activeSession.startTime.getTime()) / 1000);
 
           sendEvent({
             active: true,
@@ -432,37 +457,61 @@ router.get('/active/stream', authToken, async (req: AuthenticatedRequest, res, n
     };
 
     // Enviar estado inicial
-    await sendCurrentState();
+    await sendCurrentState(true);
 
-    // Enviar atualizações a cada segundo
+    // Listener para mudanças na sessão ativa (event-driven)
+    const onChangeHandler = (changedUserId: string) => {
+      if (changedUserId === userId) {
+        sendCurrentState(true);
+      }
+    };
+    activeSessionEmitter.on('activeSessionChange', onChangeHandler);
+
+    // Enviar atualizações de tempo a cada segundo (sem query no banco)
     let isClosed = false;
-    const interval = setInterval(async () => {
-      // Verificar se o cliente ainda está conectado
+    const interval = setInterval(() => {
       if (isClosed) {
         clearInterval(interval);
         return;
       }
 
-      try {
-        await sendCurrentState();
-      } catch (err) {
-        console.error('Erro ao enviar atualização SSE:', err);
+      // Apenas atualizar elapsedSeconds sem fazer query no banco
+      if (cachedState?.activeSession) {
+        const activeSession = cachedState.activeSession;
+        const startTime = activeSession.startTime instanceof Date 
+          ? activeSession.startTime 
+          : new Date(activeSession.startTime);
+        const now = new Date();
+        const elapsedSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+
+        sendEvent({
+          active: true,
+          id: activeSession.id,
+          startTime: startTime.toISOString(),
+          mode: activeSession.mode,
+          projectId: activeSession.projectId,
+          description: activeSession.description,
+          targetSeconds: activeSession.targetSeconds,
+          pomodoroPhase: activeSession.pomodoroPhase,
+          pomodoroCycle: activeSession.pomodoroCycle,
+          project: activeSession.project,
+          elapsedSeconds,
+        });
       }
     }, 1000);
 
     // Limpar ao desconectar
-    req.on('close', () => {
+    const cleanup = () => {
       isClosed = true;
       clearInterval(interval);
+      activeSessionEmitter.removeListener('activeSessionChange', onChangeHandler);
       if (!res.headersSent) {
         res.end();
       }
-    });
+    };
 
-    res.on('close', () => {
-      isClosed = true;
-      clearInterval(interval);
-    });
+    req.on('close', cleanup);
+    res.on('close', cleanup);
   } catch (error) {
     console.error('Erro no SSE stream:', error);
     if (!res.headersSent) {
