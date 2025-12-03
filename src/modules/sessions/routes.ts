@@ -59,6 +59,8 @@ router.get('/', authToken, async (req: AuthenticatedRequest, res, next) => {
     const limitNum = parseInt(limit as string, 10);
     const skip = (pageNum - 1) * limitNum;
 
+    console.log('Listando sessões com filtros:', { userId, where, page: pageNum, limit: limitNum });
+
     const [sessions, total] = await Promise.all([
       prisma.timeSession.findMany({
         where,
@@ -79,6 +81,8 @@ router.get('/', authToken, async (req: AuthenticatedRequest, res, next) => {
       }),
       prisma.timeSession.count({ where }),
     ]);
+
+    console.log(`Encontradas ${sessions.length} sessões de ${total} total para usuário ${userId}`);
 
     res.json({
       data: sessions,
@@ -225,7 +229,10 @@ router.post('/active', authToken, async (req: AuthenticatedRequest, res, next) =
     };
 
     if (body.description !== undefined) {
-      activeSessionData.description = body.description;
+      // Se description for string vazia, definir como undefined para remover
+      activeSessionData.description = body.description && body.description.trim() 
+        ? body.description.trim() 
+        : undefined;
     }
 
     if (body.projectId !== undefined) {
@@ -291,7 +298,7 @@ router.delete('/active', authToken, async (req: AuthenticatedRequest, res, next)
       return res.status(400).json({ error: 'Duração inválida' });
     }
 
-    // Criar TimeSession
+    // Preparar dados da TimeSession
     const sessionData: {
       description?: string;
       startTime: Date;
@@ -301,7 +308,6 @@ router.delete('/active', authToken, async (req: AuthenticatedRequest, res, next)
       userId: string;
       projectId?: string | null;
     } = {
-      description: activeSession.description || undefined,
       startTime: activeSession.startTime,
       endTime,
       durationSeconds: duration,
@@ -310,26 +316,53 @@ router.delete('/active', authToken, async (req: AuthenticatedRequest, res, next)
       projectId: activeSession.projectId || null,
     };
 
-    const timeSession = await prisma.timeSession.create({
-      data: sessionData as any,
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
+    // Incluir description apenas se não for null/undefined/vazio
+    if (activeSession.description && activeSession.description.trim()) {
+      sessionData.description = activeSession.description.trim();
+    }
+
+    // Usar transação para garantir atomicidade: criar TimeSession e deletar ActiveSession
+    const result = await prisma.$transaction(async (tx) => {
+      // Criar TimeSession primeiro
+      console.log('Criando TimeSession com dados:', {
+        userId,
+        startTime: sessionData.startTime,
+        endTime: sessionData.endTime,
+        durationSeconds: sessionData.durationSeconds,
+        mode: sessionData.mode,
+        projectId: sessionData.projectId,
+        description: sessionData.description,
+      });
+
+      const timeSession = await tx.timeSession.create({
+        data: sessionData as any,
+        include: {
+          project: {
+            select: {
+              id: true,
+              name: true,
+              color: true,
+            },
           },
         },
-      },
+      });
+
+      console.log('TimeSession criada com sucesso:', timeSession.id);
+
+      // Remover sessão ativa apenas se a criação foi bem-sucedida
+      await tx.activeSession.delete({
+        where: { userId },
+      });
+
+      console.log('ActiveSession removida com sucesso');
+
+      return timeSession;
     });
 
-    // Remover sessão ativa
-    await prisma.activeSession.delete({
-      where: { userId },
-    });
-
-    res.json({ data: timeSession });
+    console.log('Transação concluída, retornando TimeSession:', result.id);
+    res.json({ data: result });
   } catch (error) {
+    console.error('Erro ao finalizar sessão ativa:', error);
     next(error);
   }
 });
