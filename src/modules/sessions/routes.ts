@@ -16,7 +16,9 @@ const createSessionSchema = z.object({
 
 const updateSessionSchema = z.object({
   description: z.string().optional(),
-  projectId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional().nullable(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
 });
 
 // GET /sessions - Listar sessões com filtros
@@ -168,22 +170,64 @@ router.patch('/:id', authToken, async (req: AuthenticatedRequest, res, next) => 
     }
 
     // Se projectId foi fornecido, verificar se pertence ao usuário
-    if (body.projectId) {
-      const project = await prisma.project.findFirst({
-        where: {
-          id: body.projectId,
-          userId,
-        },
-      });
+    if (body.projectId !== undefined) {
+      if (body.projectId) {
+        const project = await prisma.project.findFirst({
+          where: {
+            id: body.projectId,
+            userId,
+          },
+        });
 
-      if (!project) {
-        return res.status(404).json({ error: 'Projeto não encontrado' });
+        if (!project) {
+          return res.status(404).json({ error: 'Projeto não encontrado' });
+        }
+      }
+    }
+
+    // Preparar dados para atualização
+    const updateData: any = {};
+    
+    if (body.description !== undefined) {
+      updateData.description = body.description;
+    }
+    
+    if (body.projectId !== undefined) {
+      updateData.projectId = body.projectId || null;
+    }
+
+    // Se startTime ou endTime foram fornecidos, recalcular durationSeconds
+    let newStartTime = existingSession.startTime;
+    let newEndTime = existingSession.endTime;
+    
+    if (body.startTime) {
+      newStartTime = new Date(body.startTime);
+      if (isNaN(newStartTime.getTime())) {
+        return res.status(400).json({ error: 'Data de início inválida' });
+      }
+      updateData.startTime = newStartTime;
+    }
+    
+    if (body.endTime) {
+      newEndTime = new Date(body.endTime);
+      if (isNaN(newEndTime.getTime())) {
+        return res.status(400).json({ error: 'Data de término inválida' });
+      }
+      updateData.endTime = newEndTime;
+    }
+
+    // Recalcular durationSeconds se startTime ou endTime mudaram
+    if (body.startTime || body.endTime) {
+      updateData.durationSeconds = Math.floor((newEndTime.getTime() - newStartTime.getTime()) / 1000);
+      
+      if (updateData.durationSeconds <= 0) {
+        return res.status(400).json({ error: 'A data de término deve ser posterior à data de início' });
       }
     }
 
     const session = await prisma.timeSession.update({
       where: { id },
-      data: body,
+      data: updateData,
       include: {
         project: {
           select: {
