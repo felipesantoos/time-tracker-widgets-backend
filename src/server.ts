@@ -1,18 +1,36 @@
 import express from 'express';
 import cors from 'cors';
+import pinoHttp from 'pino-http';
 import { env } from './config/env';
-import { errorHandler } from './middleware/errorHandler';
+import { logger } from './infra/logging/Logger';
+import { errorHandler } from './apps/api/middleware/errorHandler';
+import { requestId } from './apps/api/middleware/requestId';
 
-// Rotas
-import projectsRoutes from './modules/projects/routes';
-import sessionsRoutes from './modules/sessions/routes';
-import reportsRoutes from './modules/reports/routes';
-import settingsRoutes from './modules/settings/routes';
-import tokensRoutes from './modules/tokens/routes';
+// Routes
+import apiRouter from './apps/api/routes/router';
 
 const app = express();
 
-// Middlewares globais
+// Global middlewares
+app.use(requestId);
+app.use(pinoHttp({
+  logger,
+  genReqId: (req: any) => req.id,
+  customLogLevel: (_req: any, res: any, err: any) => {
+    if (res.statusCode >= 500 || err) return 'error';
+    if (res.statusCode >= 400) return 'warn';
+    return 'info';
+  },
+  serializers: {
+    req: (req: any) => ({
+      id: req.id,
+      method: req.method,
+      url: req.url,
+      query: req.query,
+      params: req.params,
+    }),
+  },
+}));
 app.use(cors({
   origin: env.corsOrigin || '*',
   credentials: true,
@@ -20,24 +38,19 @@ app.use(cors({
 app.use(express.json());
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Rotas da API
-app.use('/api/projects', projectsRoutes);
-app.use('/api/sessions', sessionsRoutes);
-app.use('/api/reports', reportsRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api/tokens', tokensRoutes);
+// API Routes
+app.use('/api', apiRouter);
 
-// Error handler (deve ser o último middleware)
+// Error handler (must be the last middleware)
 app.use(errorHandler);
 
 const PORT = env.port || 3001;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-  console.log(`📊 Ambiente: ${env.nodeEnv}`);
+  logger.info(`🚀 Server running on port ${PORT}`);
+  logger.info(`📊 Environment: ${env.nodeEnv}`);
 });
-

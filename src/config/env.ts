@@ -15,6 +15,6 @@ export const env = {
   databaseUrl: required(process.env.DATABASE_URL, "DATABASE_URL"),
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
   tokenAdminSecret: process.env.TOKEN_ADMIN_SECRET ?? "",
+  logLevel: process.env.LOG_LEVEL ?? "info",
+  logFilePath: process.env.LOG_FILE_PATH ?? "logs/app.log",
 };
-
-

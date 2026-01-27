@@ -77,7 +77,7 @@ model ActiveSession {
   startTime       DateTime
   mode            SessionMode
   description     String?
-  targetSeconds   Int?        // Para timer e pomodoro
+  targetSeconds   Int?        // For timer and pomodoro
   pomodoroPhase   String?     // 'work' | 'shortBreak' | 'longBreak'
   pomodoroCycle   Int         @default(0)
 
@@ -95,5 +95,3 @@ enum SessionMode {
   timer
   pomodoro
 }
-
-
