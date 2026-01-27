@@ -23,7 +23,7 @@ const swaggerOptions: swaggerJsdoc.Options = {
     },
     servers: [
       {
-        url: `http://localhost:${env.port || 3001}`,
+        url: `http://localhost:${env.port || 4000}`,
         description: 'Development server',
       },
     ],
