@@ -12,6 +12,11 @@ export class SessionMapper {
       mode: prismaSession.mode as SessionMode,
       projectId: prismaSession.projectId,
       userId: prismaSession.userId,
+      project: prismaSession.project ? {
+        id: prismaSession.project.id,
+        name: prismaSession.project.name,
+        color: prismaSession.project.color,
+      } : undefined,
     };
   }
 
@@ -30,6 +35,11 @@ export class SessionMapper {
       pomodoroCycle: prismaActive.pomodoroCycle,
       projectId: prismaActive.projectId,
       userId: prismaActive.userId,
+      project: prismaActive.project ? {
+        id: prismaActive.project.id,
+        name: prismaActive.project.name,
+        color: prismaActive.project.color,
+      } : undefined,
     };
   }
 

@@ -10,6 +10,11 @@ export interface TimeSession {
   mode: SessionMode;
   projectId?: string | null;
   userId: string;
+  project?: {
+    id: string;
+    name: string;
+    color: string;
+  } | null;
 }
 
 export interface ActiveSession {
@@ -22,4 +27,9 @@ export interface ActiveSession {
   pomodoroCycle: number;
   projectId?: string | null;
   userId: string;
+  project?: {
+    id: string;
+    name: string;
+    color: string;
+  } | null;
 }
