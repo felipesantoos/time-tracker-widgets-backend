@@ -14,6 +14,26 @@ const pomodoroSettingsSchema = z.object({
 export class SettingsHandler {
   constructor(private readonly settingsService: ISettingsService) {}
 
+  /**
+   * @openapi
+   * /api/settings/pomodoro:
+   *   get:
+   *     tags:
+   *       - Settings
+   *     summary: Get pomodoro settings for the authenticated user
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Pomodoro settings
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   $ref: '#/components/schemas/PomodoroSettings'
+   */
   async getPomodoro(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -24,6 +44,27 @@ export class SettingsHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/settings/pomodoro:
+   *   put:
+   *     tags:
+   *       - Settings
+   *     summary: Update pomodoro settings
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/PomodoroSettings'
+   *     responses:
+   *       200:
+   *         description: Settings updated
+   *       400:
+   *         description: Invalid data
+   */
   async updatePomodoro(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -36,3 +77,27 @@ export class SettingsHandler {
     }
   }
 }
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     PomodoroSettings:
+ *       type: object
+ *       properties:
+ *         workMinutes:
+ *           type: integer
+ *           default: 25
+ *         shortBreakMinutes:
+ *           type: integer
+ *           default: 5
+ *         longBreakMinutes:
+ *           type: integer
+ *           default: 15
+ *         longBreakInterval:
+ *           type: integer
+ *           default: 4
+ *         autoStartBreak:
+ *           type: boolean
+ *           default: false
+ */

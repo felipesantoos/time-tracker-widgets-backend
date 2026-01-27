@@ -11,12 +11,74 @@ const projectBodySchema = z.object({
 export class ProjectHandler {
   constructor(private readonly projectService: IProjectService) {}
 
+  /**
+   * @openapi
+   * /api/projects:
+   *   get:
+   *     tags:
+   *       - Projects
+   *     summary: List all projects for the authenticated user
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: List of projects
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: array
+   *                   items:
+   *                     $ref: '#/components/schemas/Project'
+   *       401:
+   *         description: Unauthorized
+   */
   async list(req: AuthenticatedRequest, res: Response) {
     const userId = req.userId!;
     const projects = await this.projectService.listProjects(userId);
     return res.json({ data: projects });
   }
 
+  /**
+   * @openapi
+   * /api/projects:
+   *   post:
+   *     tags:
+   *       - Projects
+   *     summary: Create a new project
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - name
+   *               - color
+   *             properties:
+   *               name:
+   *                 type: string
+   *               color:
+   *                 type: string
+   *     responses:
+   *       201:
+   *         description: Project created
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   $ref: '#/components/schemas/Project'
+   *       400:
+   *         description: Invalid data
+   *       401:
+   *         description: Unauthorized
+   */
   async create(req: AuthenticatedRequest, res: Response) {
     const userId = req.userId!;
     const parse = projectBodySchema.safeParse(req.body);
@@ -33,6 +95,49 @@ export class ProjectHandler {
     return res.status(201).json({ data: project });
   }
 
+  /**
+   * @openapi
+   * /api/projects/{id}:
+   *   put:
+   *     tags:
+   *       - Projects
+   *     summary: Update an existing project
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               name:
+   *                 type: string
+   *               color:
+   *                 type: string
+   *     responses:
+   *       200:
+   *         description: Project updated
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   $ref: '#/components/schemas/Project'
+   *       400:
+   *         description: Invalid data
+   *       401:
+   *         description: Unauthorized
+   *       404:
+   *         description: Project not found
+   */
   async update(req: AuthenticatedRequest, res: Response) {
     const userId = req.userId!;
     const id = req.params.id;
@@ -56,6 +161,31 @@ export class ProjectHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/projects/{id}:
+   *   delete:
+   *     tags:
+   *       - Projects
+   *     summary: Delete a project
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       204:
+   *         description: Project deleted
+   *       400:
+   *         description: Cannot delete project with associated sessions
+   *       401:
+   *         description: Unauthorized
+   *       404:
+   *         description: Project not found
+   */
   async delete(req: AuthenticatedRequest, res: Response) {
     const userId = req.userId!;
     const id = req.params.id;
@@ -76,3 +206,26 @@ export class ProjectHandler {
     }
   }
 }
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     Project:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         name:
+ *           type: string
+ *         color:
+ *           type: string
+ *         userId:
+ *           type: string
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ */

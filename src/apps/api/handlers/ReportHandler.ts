@@ -5,6 +5,37 @@ import { IReportService } from '../../../core/interfaces/primary/IReportService'
 export class ReportHandler {
   constructor(private readonly reportService: IReportService) {}
 
+  /**
+   * @openapi
+   * /api/reports/summary:
+   *   get:
+   *     tags:
+   *       - Reports
+   *     summary: Get a summary report of sessions
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: from
+   *         schema:
+   *           type: string
+   *           format: date-time
+   *       - in: query
+   *         name: to
+   *         schema:
+   *           type: string
+   *           format: date-time
+   *     responses:
+   *       200:
+   *         description: Report summary
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: object
+   */
   async summary(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -24,6 +55,37 @@ export class ReportHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/reports/pomodoro:
+   *   get:
+   *     tags:
+   *       - Reports
+   *     summary: Get a pomodoro-specific report
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: from
+   *         schema:
+   *           type: string
+   *           format: date-time
+   *       - in: query
+   *         name: to
+   *         schema:
+   *           type: string
+   *           format: date-time
+   *     responses:
+   *       200:
+   *         description: Pomodoro report
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: object
+   */
   async pomodoro(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;

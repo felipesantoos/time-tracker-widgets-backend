@@ -33,6 +33,64 @@ const activeSessionSchema = z.object({
 export class SessionHandler {
   constructor(private readonly sessionService: ISessionService) {}
 
+  /**
+   * @openapi
+   * /api/sessions:
+   *   get:
+   *     tags:
+   *       - Sessions
+   *     summary: List sessions with filtering and pagination
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: query
+   *         name: projectId
+   *         schema:
+   *           type: string
+   *       - in: query
+   *         name: from
+   *         schema:
+   *           type: string
+   *           format: date-time
+   *       - in: query
+   *         name: to
+   *         schema:
+   *           type: string
+   *           format: date-time
+   *       - in: query
+   *         name: page
+   *         schema:
+   *           type: string
+   *           default: '1'
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: string
+   *           default: '50'
+   *     responses:
+   *       200:
+   *         description: List of sessions
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 data:
+   *                   type: array
+   *                   items:
+   *                     $ref: '#/components/schemas/Session'
+   *                 pagination:
+   *                   type: object
+   *                   properties:
+   *                     page:
+   *                       type: number
+   *                     limit:
+   *                       type: number
+   *                     total:
+   *                       type: number
+   *                     totalPages:
+   *                       type: number
+   */
   async list(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { projectId, from, to, page = '1', limit = '50' } = req.query;
@@ -64,6 +122,27 @@ export class SessionHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/sessions:
+   *   post:
+   *     tags:
+   *       - Sessions
+   *     summary: Create a completed session
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/CreateSession'
+   *     responses:
+   *       201:
+   *         description: Session created
+   *       400:
+   *         description: Invalid data
+   */
   async create(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -87,6 +166,21 @@ export class SessionHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/sessions/active:
+   *   get:
+   *     tags:
+   *       - Sessions
+   *     summary: Get the current active session
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Active session found
+   *       404:
+   *         description: No active session found
+   */
   async getActive(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -98,6 +192,25 @@ export class SessionHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/sessions/active:
+   *   post:
+   *     tags:
+   *       - Sessions
+   *     summary: Start or update an active session
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/ActiveSession'
+   *     responses:
+   *       200:
+   *         description: Active session updated
+   */
   async upsertActive(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -122,6 +235,21 @@ export class SessionHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/sessions/active/finish:
+   *   post:
+   *     tags:
+   *       - Sessions
+   *     summary: Finish the current active session
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Session finished
+   *       404:
+   *         description: No active session found
+   */
   async finishActive(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -135,6 +263,23 @@ export class SessionHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/sessions/active/stream:
+   *   get:
+   *     tags:
+   *       - Sessions
+   *     summary: Stream active session updates via SSE
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: SSE stream started
+   *         content:
+   *           text/event-stream:
+   *             schema:
+   *               type: string
+   */
   async streamActive(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -233,6 +378,31 @@ export class SessionHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/sessions/{id}:
+   *   put:
+   *     tags:
+   *       - Sessions
+   *     summary: Update a session
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/UpdateSession'
+   *     responses:
+   *       200:
+   *         description: Session updated
+   */
   async update(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -251,6 +421,25 @@ export class SessionHandler {
     }
   }
 
+  /**
+   * @openapi
+   * /api/sessions/{id}:
+   *   delete:
+   *     tags:
+   *       - Sessions
+   *     summary: Delete a session
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       204:
+   *         description: Session deleted
+   */
   async delete(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.userId!;
@@ -263,3 +452,97 @@ export class SessionHandler {
     }
   }
 }
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     Session:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         userId:
+ *           type: string
+ *         projectId:
+ *           type: string
+ *           nullable: true
+ *         description:
+ *           type: string
+ *           nullable: true
+ *         startTime:
+ *           type: string
+ *           format: date-time
+ *         endTime:
+ *           type: string
+ *           format: date-time
+ *         durationSeconds:
+ *           type: integer
+ *         mode:
+ *           type: string
+ *           enum: [stopwatch, timer, pomodoro]
+ *     CreateSession:
+ *       type: object
+ *       required:
+ *         - startTime
+ *         - endTime
+ *         - durationSeconds
+ *         - mode
+ *       properties:
+ *         projectId:
+ *           type: string
+ *           nullable: true
+ *         description:
+ *           type: string
+ *         startTime:
+ *           type: string
+ *           format: date-time
+ *         endTime:
+ *           type: string
+ *           format: date-time
+ *         durationSeconds:
+ *           type: integer
+ *         mode:
+ *           type: string
+ *           enum: [stopwatch, timer, pomodoro]
+ *     UpdateSession:
+ *       type: object
+ *       properties:
+ *         description:
+ *           type: string
+ *         projectId:
+ *           type: string
+ *           nullable: true
+ *         startTime:
+ *           type: string
+ *           format: date-time
+ *         endTime:
+ *           type: string
+ *           format: date-time
+ *     ActiveSession:
+ *       type: object
+ *       required:
+ *         - startTime
+ *         - mode
+ *       properties:
+ *         startTime:
+ *           type: string
+ *           format: date-time
+ *         mode:
+ *           type: string
+ *           enum: [stopwatch, timer, pomodoro]
+ *         projectId:
+ *           type: string
+ *           nullable: true
+ *         description:
+ *           type: string
+ *         targetSeconds:
+ *           type: integer
+ *           nullable: true
+ *         pomodoroPhase:
+ *           type: string
+ *           enum: [work, shortBreak, longBreak]
+ *           nullable: true
+ *         pomodoroCycle:
+ *           type: integer
+ */
